@@ -1,43 +1,65 @@
 name: CI
+
 on:
   push:
     branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      # Se actualiza la sintaxis para usar las nuevas versiones de cache
       - name: Get Date
         id: get-date
-        run: |
-          echo "date=$(date -u '+%Y%m%d')" >> $GITHUB_ENV
-        shell: bash
+        run: echo "date=$(date -u '+%Y%m%d')" >> $GITHUB_ENV
 
-      - name: Cache Buildozer global directory
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            python3-pip \
+            python3-setuptools \
+            python3-wheel \
+            python3-venv \
+            libncurses5
+
+      - name: Cache .buildozer_global
         uses: actions/cache@v3
         with:
           path: .buildozer_global
           key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
-      - name: Cache Buildozer directory
+      - name: Cache .buildozer
         uses: actions/cache@v3
         with:
           path: .buildozer
           key: ${{ runner.os }}-${{ env.date }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: master
+      - name: Install Buildozer
+        run: |
+          python -m pip install --upgrade pip
+          pip install --user buildozer cython
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+      - name: Build APK
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          buildozer android debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v3
         with:
           name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: bin/*.apk
